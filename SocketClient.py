@@ -1,9 +1,10 @@
 # 소켓을 사용하기 위해서는 socket을 import해야 한다.
 import socket, threading
+from datetime import datetime
 
 
-class SocketServer:
-    def __init__(self, port):
+class SocketClient:
+    def __init__(self):
         # 소켓을 만든다.
         self.data = []
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -11,7 +12,7 @@ class SocketServer:
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # 서버는 복수 ip를 사용하는 pc의 경우는 ip를 지정하고 그렇지 않으면 None이 아닌 ''로 설정한다.
         # 포트는 pc내에서 비어있는 포트를 사용한다. cmd에서 netstat -an | find "LISTEN"으로 확인할 수 있다.
-        self.server_socket.bind(('', port))
+        self.server_socket.bind(('', 9999))
         self.server_state = False
 
     # binder함수는 서버에서 accept가 되면 생성되는 socket 인스턴스를 통해
@@ -85,4 +86,41 @@ class SocketServer:
 
 
 if __name__ == "__main__":
-    server = SocketServer(9999)
+    # 서버의 주소입니다. hostname 또는 ip address를 사용할 수 있습니다.
+    HOST = '127.0.0.1'
+    # 서버에서 지정해 놓은 포트 번호입니다.
+    PORT = 9999
+
+    # 소켓 객체를 생성합니다.
+    # 주소 체계(address family)로 IPv4, 소켓 타입으로 TCP 사용합니다.
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    # 지정한 HOST와 PORT를 사용하여 서버에 접속합니다.
+    client_socket.connect((HOST, PORT))
+
+    # 메시지를 전송합니다.
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    data = now + " " + str(100)
+
+    # 바이너리(byte)형식으로 변환한다.
+    data = data.encode()
+    # 바이너리의 데이터 사이즈를 구한다.
+    length = len(data)
+    # 데이터 사이즈를 little 엔디언 형식으로 byte로 변환한 다음 전송한다.
+    client_socket.sendall(length.to_bytes(4, byteorder='little'))
+    # 데이터를 클라이언트로 전송한다.
+    client_socket.sendall(data)
+
+    data = client_socket.recv(4)
+    # 최초 4바이트는 전송할 데이터의 크기이다. 그 크기는 little big 엔디언으로 byte에서 int형식으로 변환한다.
+    # C#의 BitConverter는 big엔디언으로 처리된다.
+    length = int.from_bytes(data, "little")
+    # 다시 데이터를 수신한다.
+    data = client_socket.recv(length)
+    # 수신된 데이터를 str형식으로 decode한다.
+    msg = data.decode()
+    print(msg)
+    # 소켓을 닫습니다.
+    client_socket.close()
+
+
