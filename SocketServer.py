@@ -67,6 +67,12 @@ class SocketServer:
         # server 설정이 완료되면 listen를 시작한다.
         self.server_socket.listen()
         self.server_state = True
+
+        thread = threading.Thread(target=self.work)
+        thread.setDaemon(True)
+        thread.start()
+
+    def work(self):
         try:
             # 서버는 여러 클라이언트를 상대하기 때문에 무한 루프를 사용한다.
             while True:
@@ -85,4 +91,19 @@ class SocketServer:
 
 
 if __name__ == "__main__":
-    server = SocketServer(9999)
+    # spring
+    server1 = SocketServer(9999)
+    server1.start()
+
+    # django
+    server2 = SocketServer(9998)
+    server2.start()
+
+    try:
+        while True:
+            pass
+
+    except KeyboardInterrupt as e:
+        server1.server_socket.close()
+        server2.server_socket.close()
+        exit()
