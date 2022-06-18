@@ -3,27 +3,16 @@ import socket, threading
 
 
 class SocketServer:
-    __instance = None
-
-    @classmethod
-    def __getInstance(cls):
-        return cls.__instance
-
-    @classmethod
-    def instance(cls, *args, **kargs):
-        cls.__instance = cls(*args, **kargs)
-        cls.instance = cls.__getInstance
-        return cls.__instance
-
-    def __init__(self):
+    def __init__(self, port):
         # 소켓을 만든다.
+        self.client_socket = None
         self.data = []
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # 소켓 레벨과 데이터 형태를 설정한다.
         self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # 서버는 복수 ip를 사용하는 pc의 경우는 ip를 지정하고 그렇지 않으면 None이 아닌 ''로 설정한다.
         # 포트는 pc내에서 비어있는 포트를 사용한다. cmd에서 netstat -an | find "LISTEN"으로 확인할 수 있다.
-        self.server_socket.bind(('', 9999))
+        self.server_socket.bind(('', port))
         self.server_state = False
 
     # binder함수는 서버에서 accept가 되면 생성되는 socket 인스턴스를 통해
@@ -69,8 +58,8 @@ class SocketServer:
         except Exception as e:
             # 접속이 끊기면 except가 발생한다.
             print("except : ", e)
-            print("addr:",addr)
-            #self.server_state = False
+            print("addr:", addr)
+            # self.server_state = False
         finally:
             # 접속이 끊기면 socket 리소스를 닫는다.
             client_socket.close()
@@ -79,13 +68,19 @@ class SocketServer:
         # server 설정이 완료되면 listen를 시작한다.
         self.server_socket.listen()
         self.server_state = True
+
+        thread = threading.Thread(target=self.work)
+        thread.setDaemon(True)
+        thread.start()
+
+    def work(self):
         try:
             # 서버는 여러 클라이언트를 상대하기 때문에 무한 루프를 사용한다.
             while True:
                 # client로 접속이 발생하면 accept가 발생한다.
                 # 그럼 client 소켓과 addr(주소)를 튜플로 받는다.
-                client_socket, addr = self.server_socket.accept()
-                th = threading.Thread(target=self.binder, args=(client_socket, addr))
+                self.client_socket, addr = self.server_socket.accept()
+                th = threading.Thread(target=self.binder, args=(self.client_socket, addr))
                 # 쓰레드를 이용해서 client 접속 대기를 만들고 다시 accept로 넘어가서 다른 client를 대기한다.
                 th.start()
         except:
@@ -95,6 +90,37 @@ class SocketServer:
             # 에러가 발생하면 서버 소켓을 닫는다.
             self.server_socket.close()
 
+    def sendData(self, data):
+        # 바이너리(byte)형식으로 변환한다.
+        data = data.encode()
+        # 바이너리의 데이터 사이즈를 구한다.
+        length = len(data)
+        # 데이터 사이즈를 little 엔디언 형식으로 byte로 변환한 다음 전송한다.
+        self.client_socket.sendall(length.to_bytes(4, byteorder='little'))
+        # 데이터를 클라이언트로 전송한다.
+        self.client_socket.sendall(data)
+
 
 if __name__ == "__main__":
-    SocketServer.instance().start()
+    from time import sleep
+    # spring
+    server1 = SocketServer(9999)
+    server1.start()
+
+    # django
+    server2 = SocketServer(9998)
+    server2.start()
+
+
+    try:
+        while True:
+            if server1.client_socket is not None and server2.client_socket is not None:
+                server1.sendData("server1 send data")
+                server2.sendData("server2 send data")
+                sleep(2)
+
+
+    except KeyboardInterrupt as e:
+        server1.server_socket.close()
+        server2.server_socket.close()
+        exit()
