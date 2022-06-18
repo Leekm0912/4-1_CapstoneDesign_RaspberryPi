@@ -5,6 +5,7 @@ import socket, threading
 class SocketServer:
     def __init__(self, port):
         # 소켓을 만든다.
+        self.client_socket = None
         self.data = []
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # 소켓 레벨과 데이터 형태를 설정한다.
@@ -57,8 +58,8 @@ class SocketServer:
         except Exception as e:
             # 접속이 끊기면 except가 발생한다.
             print("except : ", e)
-            print("addr:",addr)
-            #self.server_state = False
+            print("addr:", addr)
+            # self.server_state = False
         finally:
             # 접속이 끊기면 socket 리소스를 닫는다.
             client_socket.close()
@@ -78,8 +79,8 @@ class SocketServer:
             while True:
                 # client로 접속이 발생하면 accept가 발생한다.
                 # 그럼 client 소켓과 addr(주소)를 튜플로 받는다.
-                client_socket, addr = self.server_socket.accept()
-                th = threading.Thread(target=self.binder, args=(client_socket, addr))
+                self.client_socket, addr = self.server_socket.accept()
+                th = threading.Thread(target=self.binder, args=(self.client_socket, addr))
                 # 쓰레드를 이용해서 client 접속 대기를 만들고 다시 accept로 넘어가서 다른 client를 대기한다.
                 th.start()
         except:
@@ -89,8 +90,19 @@ class SocketServer:
             # 에러가 발생하면 서버 소켓을 닫는다.
             self.server_socket.close()
 
+    def sendData(self, data):
+        # 바이너리(byte)형식으로 변환한다.
+        data = data.encode()
+        # 바이너리의 데이터 사이즈를 구한다.
+        length = len(data)
+        # 데이터 사이즈를 little 엔디언 형식으로 byte로 변환한 다음 전송한다.
+        self.client_socket.sendall(length.to_bytes(4, byteorder='little'))
+        # 데이터를 클라이언트로 전송한다.
+        self.client_socket.sendall(data)
+
 
 if __name__ == "__main__":
+    from time import sleep
     # spring
     server1 = SocketServer(9999)
     server1.start()
@@ -99,9 +111,14 @@ if __name__ == "__main__":
     server2 = SocketServer(9998)
     server2.start()
 
+
     try:
         while True:
-            pass
+            if server1.client_socket is not None and server2.client_socket is not None:
+                server1.sendData("server1 send data")
+                server2.sendData("server2 send data")
+                sleep(2)
+
 
     except KeyboardInterrupt as e:
         server1.server_socket.close()

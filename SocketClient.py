@@ -18,15 +18,15 @@ class SocketClient:
         # 데이터를 클라이언트로 전송한다.
         self.client_socket.sendall(data)
 
-        data = self.client_socket.recv(4)
-        # 최초 4바이트는 전송할 데이터의 크기이다. 그 크기는 little big 엔디언으로 byte에서 int형식으로 변환한다.
-        # C#의 BitConverter는 big엔디언으로 처리된다.
-        length = int.from_bytes(data, "little")
-        # 다시 데이터를 수신한다.
-        data = self.client_socket.recv(length)
-        # 수신된 데이터를 str형식으로 decode한다.
-        msg = data.decode()
-        print(msg)
+        # data = self.client_socket.recv(4)
+        # # 최초 4바이트는 전송할 데이터의 크기이다. 그 크기는 little big 엔디언으로 byte에서 int형식으로 변환한다.
+        # # C#의 BitConverter는 big엔디언으로 처리된다.
+        # length = int.from_bytes(data, "little")
+        # # 다시 데이터를 수신한다.
+        # data = self.client_socket.recv(length)
+        # # 수신된 데이터를 str형식으로 decode한다.
+        # msg = data.decode()
+        # print(msg)
 
     def stop(self):
         # 소켓을 닫습니다.
@@ -40,9 +40,32 @@ class SocketClient:
         try:
             # 지정한 HOST와 PORT를 사용하여 서버에 접속합니다.
             self.client_socket.connect((host, port))
+
+            work = threading.Thread(target=self.receive)
+            work.setDaemon(True)
+            work.start()
+
         # 예외 발생시 연결 종료
         except Exception as e:
             self.client_socket.close()
+
+    def receive(self):
+        try:
+            while True:
+                # socket의 recv함수는 연결된 소켓으로부터 데이터를 받을 대기하는 함수입니다. 최초 4바이트를 대기합니다.
+                receive_data = self.client_socket.recv(4)
+                # 최초 4바이트는 전송할 데이터의 크기이다. 그 크기는 little big 엔디언으로 byte에서 int형식으로 변환한다.
+                # C#의 BitConverter는 big엔디언으로 처리된다.
+                length = int.from_bytes(receive_data, "little")
+                # 다시 데이터를 수신한다.
+                receive_data = self.client_socket.recv(length)
+                # 수신된 데이터를 str형식으로 decode한다.
+                msg = receive_data.decode()
+                print("서버로부터 수신된 데이터 :", msg)
+
+        except KeyboardInterrupt as e:
+            self.stop()
+            exit()
 
 
 if __name__ == "__main__":
@@ -57,7 +80,14 @@ if __name__ == "__main__":
     data = "client2"
     client2.send_data(data)
 
-    client1.stop()
-    client2.stop()
+    try:
+        # 메인 스레드 종료안되게 기다림.
+        while True:
+            pass
+
+    except KeyboardInterrupt as e:
+        client1.stop()
+        client2.stop()
+        exit()
 
 
